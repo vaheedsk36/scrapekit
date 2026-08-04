@@ -1,36 +1,36 @@
-# Hermes Agent — Reel Script (~30s)
+# Hermes Agent — One-Take Reel Script (OBS, ~30s)
 
-**Format:** vertical 9:16, top/bottom split. **TOP = screen recording. BOTTOM = you, talking to camera.**
-**Subject:** Hermes Agent (Nous Research) is the star of every beat. The apartment tool is one proof shot, nothing more.
+**Setup:** vertical, top = your screen capture, bottom = your webcam. **One continuous take, no editing.**
+Read the script straight through; the `[SCREEN]` cues are simple moves you do live while you keep talking.
 
-For each beat: **YOU (bottom)** is the line you say; **TOP (screen)** is what you screen-record and show above you; **OVERLAY** is optional on-screen text.
+## Before you hit record — stage these so nothing fails live
+1. **Terminal** open with Hermes running at its prompt, big font. Pre-type this but **don't press enter yet:**
+   `Find the top AI research papers this week and summarize them`
+2. **Browser tab A** — the Hermes Agent GitHub repo (star count visible).
+3. **Browser tab B** — your Apartment Hunter, already showing a finished result (listings + match scores on screen, so there's no waiting).
+4. Start on **Browser tab A (GitHub)**.
 
 ---
 
-### 0–3s · HOOK
-- **YOU:** "This is the open-source AI agent everyone's sleeping on — and it runs on your own machine."
-- **TOP:** Hermes Agent GitHub repo page, or the Hermes terminal already open with a blinking cursor.
-- **OVERLAY:** `Hermes Agent` · `runs on YOUR machine`
+## The take — say this straight through
 
-### 3–10s · WHAT IT IS
-- **YOU:** "It's Hermes Agent from Nous Research. Fully open source, bring your own key — no cloud, no subscription."
-- **TOP:** the one-line install running — `curl -fsSL … | bash` — then `hermes` launching into its chat prompt.
-- **OVERLAY:** `open source · bring your own key`
+"This is the open-source AI agent everyone's sleeping on, and it runs on your own machine."
+`[SCREEN: you're on the Hermes GitHub repo — slowly scroll down a touch]`
 
-### 10–20s · WHAT IT DOES
-- **YOU:** "It searches the web, drives a real browser, scrapes sites that block bots, and you schedule it in plain English — 'every morning, pull this and text me.' It even writes its own skills as it learns."
-- **TOP:** quick cuts in the Hermes terminal — a web search running → a browser window being driven → a natural-language cron line being typed → a "skill saved" message.
-- **OVERLAY:** `search · browse · scrape · schedule · self-improve`
+"It's Hermes Agent from Nous Research. Fully open source, bring your own key — no cloud, no subscription."
+`[SCREEN: switch to the terminal at the hermes prompt]`
 
-### 20–26s · PROOF (one shot)
-- **YOU:** "I gave it a real job — hunt apartments and score every listing for me. It just did it."
-- **TOP:** your Apartment Hunter tool: the terminal streaming listings and match scores filling in.
-- **OVERLAY:** `built on it in a weekend`
+"You just talk to it. It searches the web, drives a browser, scrapes sites that block bots…"
+`[SCREEN: press ENTER on the pre-typed prompt so it starts running — keep talking, don't wait for it]`
 
-### 26–32s · CTA
-- **YOU:** "One command to install, and it's yours. Go try Hermes Agent — link in bio."
-- **TOP:** back to the install command / GitHub repo, star count visible.
-- **OVERLAY:** `Install in one line → link in bio`
+"…and you can schedule it in plain English — 'every morning, pull this and text me.' It even writes its own skills as it learns."
+`[SCREEN: let the Hermes output scroll for a second]`
+
+"I gave it a real job — hunt apartments and score every listing for me. It just did it."
+`[SCREEN: switch to Browser tab B — your Apartment Hunter with results already on screen]`
+
+"One command to install, and it's yours. Go try Hermes Agent — link in bio."
+`[SCREEN: switch back to the GitHub repo]`
 
 ---
 
@@ -38,12 +38,8 @@ For each beat: **YOU (bottom)** is the line you say; **TOP (screen)** is what yo
 
 **Hashtags:** #hermesagent #nousresearch #aiagents #opensource #localai
 
----
-
-### Prep / capture checklist (record TOP screens before filming)
-1. Hermes GitHub repo (hook + CTA) — grab the star count if you'll show it (verify it's current).
-2. The `curl … | bash` install + first `hermes` launch.
-3. Hermes doing: a web search, a browser action, a plain-English cron being created, a skill being saved.
-4. Apartment Hunter streaming results (the one proof shot).
-- Keep the top screen full-width and readable at phone size — zoom terminals to large font.
-- Pace beats 1–3 fast; let the hook and the CTA breathe.
+### One-take tips
+- Only 3 screen surfaces the whole time: GitHub → terminal → your app → GitHub. Rehearse the switches once.
+- Don't wait on Hermes' output — you press enter and keep talking; it running in the background is enough.
+- Tab B already showing results means zero dead air if a live search would be slow.
+- If you fluff a line, just restart the whole take — it's only ~30 seconds.
