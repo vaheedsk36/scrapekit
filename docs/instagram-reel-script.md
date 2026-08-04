@@ -1,36 +1,36 @@
-# ScrapeKit × Hermes Agent (Instagram Reel Script, ~35s)
+# Hermes Agent (Instagram Reel Script, ~30s)
 
-> Arc: **my scraping toolkit → discovered Hermes Agent → what Hermes is → show my project → try it.** First-person build story.
+> The video is about **Hermes Agent** — it's the subject in every beat. One line of proof, that's it.
 
-**HOOK / SETUP (0–4s)**
-[ON-SCREEN TEXT] Building a toolkit of scrapers…
-VO: "I was building a little toolkit of scraping tools — apartments, prices, jobs — all in one place."
+**HOOK (0–3s)**
+[ON-SCREEN TEXT] An AI agent that improves itself — on your laptop.
+VO: "This is the open-source AI agent everyone's sleeping on, and it runs entirely on your own machine."
 
-**THE TURN (4–9s)**
-[ON-SCREEN TEXT] …then I found Hermes Agent
-VO: "Then I came across Hermes Agent from Nous Research, and it kind of changed the whole plan."
+**WHAT IT IS (3–10s)**
+[ON-SCREEN TEXT] Hermes Agent · Nous Research
+VO: "It's Hermes Agent from Nous Research. Fully open source, bring your own key — no cloud, no subscription."
 
-**EXPLAIN HERMES (9–20s)**
-[ON-SCREEN TEXT] Open source · runs on your machine
-VO: "It's an open-source AI agent that runs on your own machine — bring your own key, no subscription. It searches the web, drives a browser, gets past bot walls, and you schedule it in plain English: 'every morning, pull this and message me.'"
+**WHAT IT DOES (10–20s)**
+[ON-SCREEN TEXT] search · browse · scrape · schedule · self-improve
+VO: "It searches the web, drives a real browser, scrapes sites that block bots, and schedules itself in plain English — 'every morning, pull this and text me.' And it writes its own skills as it learns."
 
-**SHOW MY PROJECT (20–29s)**
-[ON-SCREEN TEXT] ScrapeKit → Apartment Hunter
-VO: "So I built my toolkit in that same spirit. First tool that's live — Apartment Hunter: give it a city and a budget, it finds real listings and scores every one against your brief. Price Tracker and Job Radar are next."
+**PROOF (20–26s)**
+[ON-SCREEN TEXT] I gave it a real job — one weekend
+VO: "I told it to hunt apartments and score every listing for me. It just did it. That's how capable this thing is."
 
-**CTA (29–35s)**
-[ON-SCREEN TEXT] Open source — try it, link in bio
-VO: "Everything's open source and runs locally with your own key. Go try Hermes, then check out mine — link in bio."
+**CTA (26–32s)**
+[ON-SCREEN TEXT] Install in one line — try Hermes Agent
+VO: "One command to install, and it's yours. Go try Hermes Agent — link in bio."
 
 ---
 
-**Caption:** I was building a toolkit of web scrapers… then I found Hermes Agent and rethought the whole thing. First tool is live — open source, runs locally, your own key.
+**Caption:** The most slept-on AI agent of the year — open source, self-improving, runs on your own machine. Bring your own key and it does the rest.
 
-**Hashtags:** #hermesagent #nousresearch #buildinpublic #opensource #aiagents
+**Hashtags:** #hermesagent #nousresearch #aiagents #opensource #localai
 
 ---
 
 ### Notes for filming
-- Pace the first two beats fast — the "…then I found Hermes Agent" turn is the hook payoff; let it land with a beat/zoom.
-- B-roll: the one-line `curl … | bash` Hermes install, a natural-language cron line being typed, then cut to the Apartment Hunter terminal streaming listings and match scores.
-- If you show a stat, verify Hermes' current GitHub star count before posting.
+- Every beat stays on Hermes — the apartment tool is one line of proof, not a second subject.
+- B-roll: the one-line `curl … | bash` install, a natural-language cron line being typed, Hermes scraping a Cloudflare-protected page, terminal output scrolling.
+- If you show a GitHub star count, verify it's current before posting.
