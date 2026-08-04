@@ -15,9 +15,15 @@ Built to mirror the [Nous Research **Hermes Agent**](https://hermes-agent.nousre
 pattern — **search → structure → score → present** — as a small, readable
 Python project (the web server is standard-library only).
 
-> **Bring your own key.** Everything runs locally and uses *your* OpenAI API
-> key. Nothing is sent anywhere except OpenAI (for search + scoring), the
-> geocoder (for city autocomplete), and the listing sites (for preview images).
+> **Bring your own key.** Everything runs locally and uses *your* API key.
+> Choose your provider in-app (**OpenAI**, **Anthropic/Claude**, or **xAI/Grok**);
+> the model list is fetched live from that provider — nothing hard-coded. The key
+> is cached **on the server** (`~/.scrapekit/settings.json`), never in the browser.
+> Nothing is sent anywhere except your chosen provider (search + scoring), the
+> geocoder (city autocomplete), and the listing sites (preview images).
+
+> Only the OpenAI path is verified in this repo's testing; the Claude and Grok
+> integrations follow each provider's documented API — verify with your own key.
 
 ## Quickstart
 

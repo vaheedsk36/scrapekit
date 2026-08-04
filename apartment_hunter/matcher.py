@@ -1,13 +1,13 @@
 """Decide whether a listing fits the user's criteria.
 
-Uses OpenAI GPT-4.1-mini when an API key is present; otherwise falls back to a
-transparent scoring heuristic so the project always runs. If an LLM call fails
-mid-run, it degrades to the heuristic rather than crashing the pipeline.
+Uses the configured LLM provider (OpenAI / Anthropic / xAI) when a key is
+available; otherwise falls back to a transparent scoring heuristic so the
+project always runs. If an LLM call fails mid-run, it degrades to the heuristic
+rather than crashing the pipeline.
 """
 from __future__ import annotations
 
 import json
-import os
 
 from .models import Listing, MatchResult
 
@@ -23,10 +23,13 @@ SYSTEM_PROMPT = (
 
 def evaluate(listing: Listing, criteria: dict, matcher_cfg: dict,
              currency: str = "$") -> MatchResult:
-    use_llm = matcher_cfg.get("use_llm", True) and bool(os.environ.get("OPENAI_API_KEY"))
+    from . import settings
+
+    provider, model, key = settings.get_effective()
+    use_llm = matcher_cfg.get("use_llm", True) and bool(key)
     if use_llm:
         try:
-            return _llm_eval(listing, criteria, matcher_cfg, currency)
+            return _llm_eval(listing, criteria, currency, provider, model, key)
         except Exception as exc:
             result = _heuristic(listing, criteria, currency)
             result.reason = f"[LLM fallback: {exc}] " + result.reason
@@ -85,11 +88,10 @@ def _heuristic(listing: Listing, criteria: dict, currency: str = "$") -> MatchRe
     )
 
 
-def _llm_eval(listing: Listing, criteria: dict, matcher_cfg: dict,
-              currency: str = "$") -> MatchResult:
-    from openai import OpenAI
+def _llm_eval(listing: Listing, criteria: dict, currency: str,
+              provider: str, model: str, key: str) -> MatchResult:
+    from . import providers
 
-    client = OpenAI()
     payload = json.dumps(
         {
             "currency": currency,
@@ -104,16 +106,7 @@ def _llm_eval(listing: Listing, criteria: dict, matcher_cfg: dict,
         },
         ensure_ascii=False,
     )
-    resp = client.chat.completions.create(
-        model=matcher_cfg.get("model", "gpt-4.1-mini"),
-        response_format={"type": "json_object"},
-        temperature=0.2,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": payload},
-        ],
-    )
-    data = json.loads(resp.choices[0].message.content)
+    data = providers.chat_json(provider, model, key, SYSTEM_PROMPT, payload)
     return MatchResult(
         match=bool(data.get("match")),
         score=int(data.get("score", 0)),

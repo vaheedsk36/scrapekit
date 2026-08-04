@@ -6,11 +6,10 @@ Events: log · sources · listing · done
 """
 from __future__ import annotations
 
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterator
 
-from . import matcher, search
+from . import matcher, search, settings
 
 MAX_LISTINGS = 24  # cap on how many we score per hunt
 
@@ -55,11 +54,13 @@ def run_hunt(params: dict, cfg: dict) -> Iterator[tuple[str, dict]]:
     yield "log", {"level": "info", "msg": f"Query: {where}"}
     yield "log", {"level": "info", "msg": f"Budget {currency}{criteria['max_price']} · {criteria['min_beds']}+ BHK"}
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        yield "log", {"level": "error", "msg": "OPENAI_API_KEY not set"}
+    provider, model, key = settings.get_effective()
+    if not key:
+        yield "log", {"level": "error", "msg": "No API key set — open Settings and add a provider key."}
         yield "done", {"processed": 0, "matched": 0, "sources": 0, "currency": currency}
         return
 
+    yield "log", {"level": "info", "msg": f"Provider: {provider} · model: {model}"}
     yield "log", {"level": "info", "msg": "Connecting to web search and scanning property portals"}
     try:
         listings = search.find_listings(city, country, criteria, currency, cfg, area=area)

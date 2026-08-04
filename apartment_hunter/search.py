@@ -90,13 +90,6 @@ def _parse(text: str) -> list:
     return out
 
 
-def _query(client, model: str, prompt: str) -> list:
-    resp = client.responses.create(
-        model=model, tools=[{"type": "web_search_preview"}], input=prompt,
-    )
-    return _parse(resp.output_text or "")
-
-
 def _to_listings(raw: list) -> list[Listing]:
     seen: set[str] = set()
     listings: list[Listing] = []
@@ -124,13 +117,12 @@ def _to_listings(raw: list) -> list[Listing]:
 
 def find_listings(city: str, country: str, criteria: dict,
                   currency: str, cfg: dict, area: str = "") -> list[Listing]:
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY required for live search")
+    from . import providers, settings
 
-    from openai import OpenAI
+    provider, model, key = settings.get_effective()
+    if not key:
+        raise RuntimeError("No provider API key configured — set one in Settings")
 
-    client = OpenAI()
-    model = cfg.get("matcher", {}).get("model", "gpt-4.1-mini")
     budget = criteria.get("max_price")
     beds = criteria.get("min_beds")
     keywords = ", ".join(criteria.get("keywords", []))
@@ -150,7 +142,7 @@ def find_listings(city: str, country: str, criteria: dict,
         "Include only listings with real, working URLs from genuine property sites. "
         "Output ONLY the raw JSON array — no markdown code fences, no commentary."
     )
-    raw = _query(client, model, primary)
+    raw = _parse(providers.web_search(provider, model, key, primary))
 
     # If the first pass is thin, run a complementary search and MERGE (dedupe
     # happens in _to_listings). This raises the floor when web search is stingy.
@@ -163,6 +155,6 @@ def find_listings(city: str, country: str, criteria: dict,
             '{"title","price","beds","location","url","source","features","image"}. '
             "Use real property-site URLs. Never return an empty array."
         )
-        raw = raw + _query(client, model, supplement)
+        raw = raw + _parse(providers.web_search(provider, model, key, supplement))
 
     return _to_listings(raw)

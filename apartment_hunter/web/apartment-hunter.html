@@ -55,8 +55,9 @@
       <span class="font-semibold tracking-tight">Apartment Hunter</span>
     </div>
     <span class="hidden md:flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400 border-l border-zinc-200 dark:border-zinc-800 pl-4">Live rental intelligence, scored to your brief</span>
-    <div class="ml-auto flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-      <span id="led" class="w-2 h-2 rounded-full bg-zinc-400"></span><span id="statusTxt">Ready</span>
+    <div class="ml-auto flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+      <span class="flex items-center gap-2"><span id="led" class="w-2 h-2 rounded-full bg-zinc-400"></span><span id="statusTxt">Ready</span></span>
+      <button id="openSettings" type="button" class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400"><i data-lucide="settings" class="w-4 h-4"></i><span class="hidden sm:inline">Settings</span></button>
     </div>
   </div>
   <div id="prog" class="prog"><i></i></div>
@@ -344,6 +345,119 @@ $("expCsv").addEventListener("click",()=>{const rows=view();if(!rows.length)retu
   download("apartments.csv",lines.join("\r\n"),"text/csv;charset=utf-8");});
 
 renderLocalities(); icons();
+</script>
+
+<!-- SETTINGS MODAL -->
+<div id="settingsOverlay" class="hidden fixed inset-0 z-50 bg-zinc-950/50 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="card w-full max-w-md shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2">
+        <i data-lucide="key-round" class="w-4 h-4 text-indigo-500"></i>
+        <h2 class="text-sm font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">AI provider &amp; key</h2>
+      </div>
+      <button id="closeSettings" type="button" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div>
+        <label class="lbl" for="setProvider"><i data-lucide="cpu" class="w-3.5 h-3.5"></i>Provider</label>
+        <select id="setProvider" class="inp">
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic (Claude)</option>
+          <option value="xai">xAI (Grok)</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="setKey"><i data-lucide="lock" class="w-3.5 h-3.5"></i>API key</label>
+        <div class="flex gap-2">
+          <input id="setKey" type="password" class="inp" placeholder="Paste key, then Load models" autocomplete="off" />
+          <button id="loadModels" type="button" class="btng shrink-0"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Load</button>
+        </div>
+        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5">The key is sent once and stored on the server (this machine) — never kept in the browser.</p>
+      </div>
+      <div>
+        <label class="lbl" for="setModel"><i data-lucide="box" class="w-3.5 h-3.5"></i>Model</label>
+        <select id="setModel" class="inp"><option value="">Load models to choose…</option></select>
+      </div>
+      <div id="setStatus" class="text-xs"></div>
+      <button id="saveSettings" type="button" class="btnp"><i data-lucide="check" class="w-4 h-4"></i>Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const overlay = $("settingsOverlay");
+  const statusEl = $("setStatus");
+  function open(){ overlay.classList.remove("hidden"); refreshStatus(); restoreLocal(); window.lucide && lucide.createIcons(); }
+  function close(){ overlay.classList.add("hidden"); }
+  $("openSettings").addEventListener("click", open);
+  $("closeSettings").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+
+  function setStatus(msg, kind){
+    const c = kind === "err" ? "text-rose-600 dark:text-rose-400"
+            : kind === "ok" ? "text-emerald-600 dark:text-emerald-400"
+            : "text-zinc-500 dark:text-zinc-400";
+    statusEl.className = "text-xs " + c;
+    statusEl.textContent = msg;
+  }
+
+  function restoreLocal(){
+    const p = localStorage.getItem("ah_provider"); if (p) $("setProvider").value = p;
+    const m = localStorage.getItem("ah_model");
+    if (m){ const sel = $("setModel"); sel.innerHTML = `<option value="${m}">${m}</option>`; sel.value = m; }
+  }
+
+  async function refreshStatus(){
+    try {
+      const s = await (await fetch("/api/settings")).json();
+      if (s.has_key) setStatus(`Active: ${s.provider}${s.model ? " · " + s.model : ""} (key from ${s.source})`, "ok");
+      else setStatus("No key set yet — pick a provider and paste your key.", "");
+    } catch { setStatus("", ""); }
+  }
+
+  $("loadModels").addEventListener("click", async () => {
+    const provider = $("setProvider").value;
+    const api_key = $("setKey").value.trim();
+    setStatus("Loading models…", "");
+    try {
+      const r = await fetch("/api/provider/models", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, api_key }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) { setStatus("Could not load models: " + (d.error || r.status), "err"); return; }
+      const sel = $("setModel");
+      sel.innerHTML = d.models.map(m => `<option value="${m}">${m}</option>`).join("") || '<option value="">No models returned</option>';
+      setStatus(`Loaded ${d.models.length} model(s). Pick one and Save.`, "ok");
+    } catch (e) { setStatus("Request failed: " + e, "err"); }
+  });
+
+  $("saveSettings").addEventListener("click", async () => {
+    const provider = $("setProvider").value;
+    const model = $("setModel").value;
+    const api_key = $("setKey").value.trim();
+    if (!model) { setStatus("Choose a model first (Load models).", "err"); return; }
+    try {
+      const r = await fetch("/api/settings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, model, api_key }),
+      });
+      const s = await r.json();
+      localStorage.setItem("ah_provider", provider);
+      localStorage.setItem("ah_model", model);
+      $("setKey").value = "";  // never keep the key in the browser
+      if (s.has_key) setStatus(`Saved. Using ${s.provider} · ${s.model}. Key stored on the server.`, "ok");
+      else setStatus("Saved provider/model, but no key is set — paste your key and Save again.", "err");
+    } catch (e) { setStatus("Save failed: " + e, "err"); }
+  });
+
+  // hint on load if no key configured
+  fetch("/api/settings").then(r => r.json()).then(s => {
+    if (!s.has_key) { const t = document.getElementById("statusTxt"); if (t) t.textContent = "Set API key →"; }
+  }).catch(()=>{});
+})();
 </script>
 </body>
 </html>
