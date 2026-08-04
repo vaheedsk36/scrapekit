@@ -1,0 +1,40 @@
+# Real-world config for India. Copy to config.yaml and run:
+#   python -m apartment_hunter run --config config.yaml
+# (Requires: pip install -r requirements.txt)
+
+currency: "₹"
+
+criteria:
+  city: Bengaluru
+  max_price: 35000          # monthly rent in ₹
+  min_beds: 2               # BHK — "2 BHK" is read as 2
+  keywords: [semi-furnished, car parking, power backup, gated community]
+  match_threshold: 60
+
+matcher:
+  use_llm: true             # set false to run the free heuristic only
+  model: gpt-4.1-mini       # cheapest model that matches GPT-4o quality here
+
+notify:
+  console: true
+  telegram: true            # needs TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in .env
+
+sources:
+  # Indian rental portals (NoBroker, Magicbricks, 99acres, Housing.com) are
+  # JS-heavy and bot-protected, so use stealth: true (Scrapling/Hermes handles
+  # the browser). Each site needs its OWN selectors — inspect the page, find the
+  # repeating listing "card", then the child selectors within it.
+  #
+  # ⚠️ Respect each site's robots.txt and Terms of Service. Scrape gently
+  #    (low frequency), and prefer official/partner APIs where one exists.
+  - name: magicbricks-blr
+    type: html
+    url: https://www.magicbricks.com/property-for-rent/residential-real-estate?cityName=Bangalore
+    stealth: true
+    selectors:
+      item: ".mb-srp__card"
+      title: ".mb-srp__card--title"
+      price: ".mb-srp__card__price--amount"
+      beds: ".mb-srp__card__summary--value"
+      location: ".mb-srp__card--title"
+      description: ".mb-srp__card--desc"

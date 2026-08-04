@@ -1,0 +1,7 @@
+# Required for the web app (web search + listing scoring):
+openai>=1.40
+
+# Optional — only needed for the CLI cron/alert path with live HTML scraping:
+scrapling>=0.2         # stealth scraping / Cloudflare bypass
+beautifulsoup4>=4.12   # HTML parsing for live sources
+pyyaml>=6.0            # only if you use a .yaml config

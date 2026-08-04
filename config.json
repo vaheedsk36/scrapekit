@@ -1,0 +1,25 @@
+{
+  "currency": "₹",
+  "criteria": {
+    "city": "Bengaluru",
+    "max_price": 35000,
+    "min_beds": 2,
+    "keywords": ["semi-furnished", "car parking", "power backup", "gated community"],
+    "match_threshold": 60
+  },
+  "matcher": {
+    "use_llm": true,
+    "model": "gpt-4.1-mini"
+  },
+  "notify": {
+    "console": true,
+    "telegram": false
+  },
+  "sources": [
+    {
+      "name": "demo",
+      "type": "json",
+      "path": "apartment_hunter/fixtures/demo_listings.json"
+    }
+  ]
+}

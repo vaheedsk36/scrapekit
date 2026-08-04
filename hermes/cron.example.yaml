@@ -1,0 +1,10 @@
+# Register with Hermes:  hermes cron create -f hermes/cron.example.yaml
+# (or just tell Hermes in chat: "every 30 minutes, run the apartment hunter")
+
+name: apartment-hunter
+trigger:
+  cron: "*/30 * * * *"      # every 30 minutes
+  timezone: America/Chicago  # ALWAYS set a timezone
+mode: script                 # no LLM at the cron layer — the script calls the model
+task: |
+  cd ~/Documents/apartment-hunter && python -m apartment_hunter run --config config.yaml

@@ -1,0 +1,44 @@
+[
+  {
+    "title": "Spacious 2 BHK semi-furnished in Koramangala",
+    "price": "₹32,000/month",
+    "beds": "2 BHK",
+    "location": "Koramangala, Bengaluru",
+    "description": "Semi-furnished 2 BHK with car parking, power backup, and gated community. Close to metro."
+  },
+  {
+    "title": "3 BHK with balcony in Indiranagar",
+    "price": "₹34,000",
+    "beds": "3 BHK",
+    "location": "Indiranagar, Bengaluru",
+    "description": "Spacious 3 BHK, car parking, lift, gated community, 24x7 security."
+  },
+  {
+    "title": "Luxury 3 BHK in Whitefield",
+    "price": "₹55,000/month",
+    "beds": "3 BHK",
+    "location": "Whitefield, Bengaluru",
+    "description": "Fully furnished premium flat, clubhouse, swimming pool, power backup."
+  },
+  {
+    "title": "Cozy 1 BHK near Marathahalli",
+    "price": "₹18,000",
+    "beds": "1 BHK",
+    "location": "Marathahalli, Bengaluru",
+    "description": "Compact 1 BHK, bachelor friendly, no parking."
+  },
+  {
+    "title": "2 BHK in Hinjewadi",
+    "price": "₹28,000/month",
+    "beds": "2 BHK",
+    "location": "Hinjewadi, Pune",
+    "description": "Semi-furnished 2 BHK near IT park, car parking, power backup."
+  },
+  {
+    "title": "Modern 2 BHK semi-furnished near Electronic City",
+    "price": "₹30,000",
+    "beds": "2 BHK",
+    "location": "Electronic City, Bengaluru",
+    "description": "Semi-furnished 2 BHK with power backup, car parking, and gated community."
+  }
+]
