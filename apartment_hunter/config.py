@@ -28,11 +28,18 @@ def _load_env() -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+_DEFAULT_CONFIG = {"currency": "$", "matcher": {"use_llm": True}}
+
+
 def load_config(path: Optional[str] = None) -> dict[str, Any]:
     _load_env()
     cfg_path = Path(path) if path else PROJECT_ROOT / "config.json"
     if not cfg_path.is_absolute():
         cfg_path = PROJECT_ROOT / cfg_path
+    if not cfg_path.exists():
+        # Installed as a package (no repo config.json) — sane defaults; provider,
+        # model, and key come from Settings / env, not this file.
+        return dict(_DEFAULT_CONFIG)
     text = cfg_path.read_text()
     if cfg_path.suffix in (".yaml", ".yml"):
         try:

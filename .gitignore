@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Python packaging / uv build artifacts
+*.egg-info/
+build/
+dist/
+.uv/

@@ -27,16 +27,41 @@ Python project (the web server is standard-library only).
 
 ## Quickstart
 
+### One command with [uv](https://docs.astral.sh/uv/) (recommended)
+
+`uv` manages Python **and** dependencies for you — no venv, no pip, and it uses
+its own Python so it sidesteps system-Python issues. Run straight from GitHub
+(no clone needed):
+
 ```bash
-git clone <your-fork-url> apartment-hunter && cd apartment-hunter
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env          # add your OPENAI_API_KEY
-python -m apartment_hunter serve
+uvx --from git+https://github.com/vaheedsk36/scrapekit scrapekit serve
 ```
 
-Open <http://127.0.0.1:8000> for the ScrapeKit hub, click **Apartment Hunter**,
-set your brief, and hit **Search listings**.
+It opens <http://127.0.0.1:8000> in your browser. Click **Apartment Hunter**,
+open **Settings**, add your provider key — or pass it inline:
+
+```bash
+OPENAI_API_KEY=sk-... uvx --from git+https://github.com/vaheedsk36/scrapekit scrapekit serve
+```
+
+From a clone (for development):
+
+```bash
+git clone https://github.com/vaheedsk36/scrapekit && cd scrapekit
+uv run scrapekit serve
+```
+
+### Or plain pip
+
+```bash
+git clone https://github.com/vaheedsk36/scrapekit && cd scrapekit
+python3 -m venv .venv && . .venv/bin/activate
+pip install -e .
+scrapekit serve
+```
+
+Then open <http://127.0.0.1:8000>, click **Apartment Hunter**, set your brief,
+and hit **Search listings**.
 
 ## The web UI
 

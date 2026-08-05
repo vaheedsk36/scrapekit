@@ -1,0 +1,26 @@
+[project]
+name = "scrapekit"
+version = "0.1.0"
+description = "Bring-your-own-key toolkit of scraping utilities. First tool: Apartment Hunter."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "openai>=1.40",      # OpenAI + xAI/Grok (OpenAI-compatible)
+    "anthropic>=0.40",   # Claude provider
+]
+
+[project.optional-dependencies]
+# Only for the CLI cron/alert path with live HTML scraping + YAML config:
+cli = ["scrapling>=0.2", "beautifulsoup4>=4.12", "pyyaml>=6.0"]
+
+[project.scripts]
+scrapekit = "apartment_hunter.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Ships the package plus its web/ and fixtures/ data files.
+packages = ["apartment_hunter"]

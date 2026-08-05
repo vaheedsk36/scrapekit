@@ -129,7 +129,14 @@ def serve(port: int = 8000, config: "str | None" = None) -> None:
     _load_env()
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}"
-    print(f"\n  Apartment Hunter  ->  {url}\n  (Ctrl+C to stop)\n")
+    print(f"\n  ScrapeKit  ->  {url}\n  (Ctrl+C to stop)\n")
+    if os.environ.get("SCRAPEKIT_NO_OPEN") != "1":
+        try:
+            import threading
+            import webbrowser
+            threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+        except Exception:
+            pass
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
