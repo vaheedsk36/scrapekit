@@ -55,6 +55,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_file("apartment-hunter.html", "text/html; charset=utf-8")
         if parsed.path in ("/price-tracker", "/price-tracker.html"):
             return self._serve_file("price-tracker.html", "text/html; charset=utf-8")
+        if parsed.path in ("/job-radar", "/job-radar.html"):
+            return self._serve_file("job-radar.html", "text/html; charset=utf-8")
+        if parsed.path in ("/grants", "/grants.html"):
+            return self._serve_file("grants.html", "text/html; charset=utf-8")
         if parsed.path == "/api/settings":
             from . import settings
             return self._send_json(settings.public_status())
@@ -62,6 +66,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._hunt(parse_qs(parsed.query))
         if parsed.path == "/api/track":
             return self._track(parse_qs(parsed.query))
+        if parsed.path == "/api/jobs":
+            return self._jobs(parse_qs(parsed.query))
+        if parsed.path == "/api/grants":
+            return self._grants(parse_qs(parsed.query))
         self.send_error(404)
 
     def do_POST(self):
@@ -165,6 +173,65 @@ class Handler(BaseHTTPRequestHandler):
                               "currency": params["currency"]})
             except Exception:
                 pass
+
+    def _sse(self, run_fn, params: dict) -> None:
+        """Shared SSE streamer: run a tool's generator and emit its events."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+        cfg = load_config(os.environ.get("AH_CONFIG") or None)
+
+        def emit(event: str, data: dict) -> None:
+            chunk = f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+            self.wfile.write(chunk.encode("utf-8"))
+            self.wfile.flush()
+
+        try:
+            for event, data in run_fn(params, cfg):
+                emit(event, data)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        except Exception as exc:
+            try:
+                emit("log", {"level": "error", "msg": f"Server error: {exc}"})
+                emit("done", {"processed": 0, "matched": 0, "sources": 0,
+                              "currency": params.get("currency", "$")})
+            except Exception:
+                pass
+
+    def _jobs(self, q: dict) -> None:
+        def one(key, default=None):
+            vals = q.get(key)
+            return vals[0] if vals else default
+        params = {
+            "country": one("country", ""),
+            "location": one("location", ""),
+            "role": one("role", ""),
+            "seniority": one("seniority", ""),
+            "remote": one("remote", ""),
+            "currency": one("currency", "$"),
+            "threshold": int(one("threshold") or 60),
+            "keywords": [k.strip() for k in (one("keywords", "") or "").split(",") if k.strip()],
+        }
+        from . import job_hunt
+        self._sse(job_hunt.run_jobs, params)
+
+    def _grants(self, q: dict) -> None:
+        def one(key, default=None):
+            vals = q.get(key)
+            return vals[0] if vals else default
+        params = {
+            "country": one("country", ""),
+            "sector": one("sector", ""),
+            "type": one("type", "both"),
+            "currency": one("currency", "$"),
+            "threshold": int(one("threshold") or 60),
+            "keywords": [k.strip() for k in (one("keywords", "") or "").split(",") if k.strip()],
+        }
+        from . import grants_hunt
+        self._sse(grants_hunt.run_grants, params)
 
 
 def serve(port: int = 8000, config: "str | None" = None) -> None:
