@@ -12,14 +12,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterator
 
 from . import providers, settings
-from .search import _parse, _to_int_price
+from .search import accumulate, _to_int_price
 
 MAX_JOBS = 24
 
 SCORE_SYSTEM = (
     "You are a job-fit analyst. Given a candidate's brief and ONE job, judge how "
     "well it fits. Weigh role match, seniority, required skills, remote preference, "
-    'and location. Respond ONLY with JSON: {"match": boolean, "score": integer '
+    "and location. Be a critical, calibrated judge. Reserve 80-100 for genuinely "
+    "strong fits, 60-79 for decent, 40-59 for weak, below 40 for poor. Do not "
+    'inflate scores. Respond ONLY with JSON: {"match": boolean, "score": integer '
     '0-100, "verdict": short phrase (e.g. "Strong fit", "Maybe", "Poor fit"), '
     '"reason": short string}.'
 )
@@ -56,31 +58,37 @@ def _to_jobs(raw: list) -> list[dict]:
 def _find_jobs(role, location, keywords, seniority, remote, provider, model, key):
     skills = ", ".join(keywords)
     rem = " remote" if remote else ""
-    primary = (
-        f"Search job boards for CURRENT job openings for a {seniority}{rem} "
-        f"{role} in {location}. "
-        + (f"Matching skills/keywords: {skills}. " if skills else "")
-        + "Return up to 12 openings as a JSON array. Each item: "
-        '{"title": string, "company": string, "location": string, '
-        '"url": string (a direct link to the job posting page), '
-        '"salary": string (like "₹20–30 LPA" or a number, else ""), '
-        '"posted": string (e.g. "2 days ago"), "remote": boolean, '
-        '"source": string (job board name), '
-        '"tags": string (comma-separated skills), "description": string}. '
-        "Only real, working job posting URLs from genuine job boards. "
-        "Output ONLY the JSON array."
-    )
-    raw = _parse(providers.web_search(provider, model, key, primary))
-    if len(raw) < 5:
-        supplement = (
-            f"Find MORE current {seniority}{rem} {role} openings in {location}"
-            + (f" matching {skills}" if skills else "")
-            + ", from a VARIETY of job boards (avoid duplicates). "
-            'Return ONLY a JSON array of {"title","company","location","url",'
-            '"salary","posted","remote","source","tags","description"}. '
-            "Real job posting URLs. Never return an empty array."
+
+    def make_prompt(exclude):
+        prompt = (
+            f"Search job boards for CURRENT job openings for a {seniority}{rem} "
+            f"{role} in {location}. "
+            + (f"Matching skills/keywords: {skills}. " if skills else "")
+            + f"Prefer well-known, popular job boards used in the {location} region. "
+            + "Return up to 15 openings as a JSON array. Each item: "
+            '{"title": string, "company": string, "location": string, '
+            '"url": string (a direct link to the job posting page), '
+            '"salary": string (like "₹20–30 LPA" or a number, else ""), '
+            '"posted": string (e.g. "2 days ago"), "remote": boolean, '
+            '"source": string (job board name), '
+            '"tags": string (comma-separated skills), "description": string}. '
+            "Only real, working job posting URLs from genuine job boards. "
+            "Output ONLY the JSON array."
         )
-        raw = raw + _parse(providers.web_search(provider, model, key, supplement))
+        if exclude:
+            prompt += (
+                " Do NOT repeat any of these already-listed results: "
+                + ", ".join(exclude) + ". Return only NEW ones."
+            )
+        return prompt
+
+    def key_of(d):
+        url = str(d.get("url", "")).strip()
+        title = str(d.get("title", "")).strip()
+        company = str(d.get("company", "")).strip()
+        return url or (title + company)
+
+    raw = accumulate(provider, model, key, make_prompt, key_of, target=25, max_rounds=4)
     return _to_jobs(raw)
 
 
@@ -94,7 +102,7 @@ def _score_job(job, role, seniority, keywords, remote, location, threshold, prov
         }, ensure_ascii=False)
         data = providers.chat_json(provider, model, key, SCORE_SYSTEM, payload)
         score = int(data.get("score", 0))
-        match = bool(data.get("match")) or score >= threshold
+        match = score >= threshold
         return {
             "job": job,
             "score": score,

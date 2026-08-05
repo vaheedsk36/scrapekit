@@ -9,22 +9,80 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
 from . import webhunt
 from .config import load_config
 
-WEB_DIR = Path(__file__).resolve().parent / "web"
+_PKG_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = _PKG_DIR / "templates"
+STATIC_DIR = _PKG_DIR / "static"
+
+# Jinja2 environment for the tool/home pages. Templates and static assets ship
+# inside the package so they end up in the wheel.
+_JINJA = Environment(
+    loader=FileSystemLoader(str(TEMPLATES_DIR)),
+    autoescape=select_autoescape(default=True, default_for_string=True),
+)
+
+# URL path -> template name. Every page route (and its ".html" alias) is served
+# by rendering the matching Jinja template.
+PAGE_TEMPLATES = {
+    "/": "home.html.j2",
+    "/index.html": "home.html.j2",
+    "/home": "home.html.j2",
+    "/apartment-hunter": "apartment-hunter.html.j2",
+    "/apartment-hunter.html": "apartment-hunter.html.j2",
+    "/price-tracker": "price-tracker.html.j2",
+    "/price-tracker.html": "price-tracker.html.j2",
+    "/job-radar": "job-radar.html.j2",
+    "/job-radar.html": "job-radar.html.j2",
+    "/grants": "grants.html.j2",
+    "/grants.html": "grants.html.j2",
+    "/flight-deals": "flight-deals.html.j2",
+    "/flight-deals.html": "flight-deals.html.j2",
+    "/car-finder": "car-finder.html.j2",
+    "/car-finder.html": "car-finder.html.j2",
+}
+
+_STATIC_TYPES = {
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".map": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+}
 
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):  # keep the console clean
         pass
 
-    def _serve_file(self, name: str, ctype: str) -> None:
+    def _render_page(self, template: str) -> None:
         try:
-            body = (WEB_DIR / name).read_bytes()
-        except FileNotFoundError:
+            body = _JINJA.get_template(template).render().encode("utf-8")
+        except Exception:
+            self.send_error(500)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _serve_static(self, rel: str) -> None:
+        # Resolve within STATIC_DIR and refuse any path traversal.
+        target = (STATIC_DIR / rel).resolve()
+        try:
+            target.relative_to(STATIC_DIR.resolve())
+        except ValueError:
             self.send_error(404)
             return
+        try:
+            body = target.read_bytes()
+        except (FileNotFoundError, IsADirectoryError):
+            self.send_error(404)
+            return
+        ctype = _STATIC_TYPES.get(target.suffix, "application/octet-stream")
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -49,20 +107,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        if parsed.path in ("/", "/index.html", "/home"):
-            return self._serve_file("home.html", "text/html; charset=utf-8")
-        if parsed.path in ("/apartment-hunter", "/apartment-hunter.html"):
-            return self._serve_file("apartment-hunter.html", "text/html; charset=utf-8")
-        if parsed.path in ("/price-tracker", "/price-tracker.html"):
-            return self._serve_file("price-tracker.html", "text/html; charset=utf-8")
-        if parsed.path in ("/job-radar", "/job-radar.html"):
-            return self._serve_file("job-radar.html", "text/html; charset=utf-8")
-        if parsed.path in ("/grants", "/grants.html"):
-            return self._serve_file("grants.html", "text/html; charset=utf-8")
-        if parsed.path in ("/flight-deals", "/flight-deals.html"):
-            return self._serve_file("flight-deals.html", "text/html; charset=utf-8")
-        if parsed.path in ("/car-finder", "/car-finder.html"):
-            return self._serve_file("car-finder.html", "text/html; charset=utf-8")
+        if parsed.path in PAGE_TEMPLATES:
+            return self._render_page(PAGE_TEMPLATES[parsed.path])
+        if parsed.path.startswith("/static/"):
+            return self._serve_static(parsed.path[len("/static/"):])
         if parsed.path == "/api/settings":
             from . import settings
             return self._send_json(settings.public_status())

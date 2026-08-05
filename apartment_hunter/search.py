@@ -90,6 +90,62 @@ def _parse(text: str) -> list:
     return out
 
 
+def accumulate(provider, model, key, make_prompt, key_of, target=25, max_rounds=4):
+    """Run web_search repeatedly, each round excluding items already seen, until
+    `target` unique items are collected or `max_rounds` is hit. make_prompt(exclude)
+    returns the search prompt given a list of already-seen short labels to avoid;
+    key_of(item_dict) returns a dedupe key. Returns the merged list of raw dicts.
+
+    The web-search tool tends to return only a handful of items per call, so we
+    run several rounds — each asking for MORE while excluding what we've already
+    seen — then merge and dedupe. Round 1 asks with no exclusions; later rounds
+    only fire while we're still under target and stop early on a dry round (one
+    that adds nothing new). max_rounds is a hard cap (each round is a paid call).
+    """
+    from . import providers
+
+    results: list = []
+    seen_keys: set = set()
+    seen_labels: list[str] = []
+
+    # Hard cap at 2 rounds: the web-search tool tends to return the same handful
+    # each call, so extra rounds mostly yield duplicates while multiplying latency
+    # and cost. One exclusion-aware top-up round is the sweet spot.
+    rounds = max(1, min(max_rounds, 2))
+    for round_i in range(rounds):
+        # Only keep spending rounds while we still need more.
+        if round_i and len(results) >= target:
+            break
+        # Round 1 gets no exclusions; later rounds get the most recent ~25 labels
+        # to keep the prompt small.
+        exclude = seen_labels[-25:] if round_i else []
+        prompt = make_prompt(exclude)
+        try:
+            batch = _parse(providers.web_search(provider, model, key, prompt))
+        except Exception:
+            if round_i == 0:
+                raise  # first-round failure is a real error — let callers handle it
+            break  # keep whatever we've already gathered
+        added = 0
+        for item in batch:
+            if not isinstance(item, dict):
+                continue
+            k = key_of(item)
+            if not k or k in seen_keys:
+                continue
+            seen_keys.add(k)
+            results.append(item)
+            added += 1
+            title = str(item.get("title") or "").strip()
+            src = str(item.get("source") or "").strip()
+            label = f"{title} ({src})" if title and src else (title or src)
+            if label:
+                seen_labels.append(label[:60])
+        if round_i and added == 0:
+            break  # dry round — searching more is unlikely to help
+    return results
+
+
 def _to_listings(raw: list) -> list[Listing]:
     seen: set[str] = set()
     listings: list[Listing] = []
@@ -128,33 +184,33 @@ def find_listings(city: str, country: str, criteria: dict,
     keywords = ", ".join(criteria.get("keywords", []))
     location = f"{area + ', ' if area else ''}{city}, {country}"
 
-    primary = (
-        f"Search the web for CURRENT rental apartment listings in {location}. "
-        f"Target: monthly rent up to {currency}{budget}, at least {beds} bedrooms. "
-        + (f"Preferred features: {keywords}. " if keywords else "")
-        + "Return up to 12 items as a JSON array. Each item must be: "
-        '{"title": string, "price": integer monthly rent (number only), '
-        '"beds": number, "location": string, "url": string (prefer a direct link to '
-        'the specific property\'s detail page, which usually has photos; a filtered '
-        'search URL is acceptable only if no direct link is available), '
-        '"source": string (website name), "features": string, '
-        '"image": string (a direct image URL for the property if available, else "")}. '
-        "Include only listings with real, working URLs from genuine property sites. "
-        "Output ONLY the raw JSON array — no markdown code fences, no commentary."
-    )
-    raw = _parse(providers.web_search(provider, model, key, primary))
-
-    # If the first pass is thin, run a complementary search and MERGE (dedupe
-    # happens in _to_listings). This raises the floor when web search is stingy.
-    if len(raw) < 6:
-        supplement = (
-            f"Find MORE apartments currently advertised for rent in {location}, "
-            f"around {currency}{budget} per month, {beds}+ bedrooms, from a VARIETY "
-            "of property websites and neighbourhoods (avoid duplicates of common ones). "
-            "Return ONLY a JSON array of "
-            '{"title","price","beds","location","url","source","features","image"}. '
-            "Use real property-site URLs. Never return an empty array."
+    def make_prompt(exclude):
+        prompt = (
+            f"Search the web for CURRENT rental apartment listings in {location}. "
+            f"Target: monthly rent up to {currency}{budget}, at least {beds} bedrooms. "
+            + (f"Preferred features: {keywords}. " if keywords else "")
+            + f"Prefer well-known, popular property websites used in the {country} region. "
+            + "Return up to 15 items as a JSON array. Each item must be: "
+            '{"title": string, "price": integer monthly rent (number only), '
+            '"beds": number, "location": string, "url": string (prefer a direct link to '
+            'the specific property\'s detail page, which usually has photos; a filtered '
+            'search URL is acceptable only if no direct link is available), '
+            '"source": string (website name), "features": string, '
+            '"image": string (a direct image URL for the property if available, else "")}. '
+            "Include only listings with real, working URLs from genuine property sites. "
+            "Output ONLY the raw JSON array — no markdown code fences, no commentary."
         )
-        raw = raw + _parse(providers.web_search(provider, model, key, supplement))
+        if exclude:
+            prompt += (
+                " Do NOT repeat any of these already-listed results: "
+                + ", ".join(exclude) + ". Return only NEW ones."
+            )
+        return prompt
 
+    def key_of(d):
+        url = str(d.get("url", "")).strip()
+        title = str(d.get("title", "")).strip()
+        return url or (title + str(d.get("location", "")))
+
+    raw = accumulate(provider, model, key, make_prompt, key_of, target=25, max_rounds=4)
     return _to_listings(raw)

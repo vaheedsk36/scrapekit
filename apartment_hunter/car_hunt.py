@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterator
 
 from . import providers, settings
-from .search import _parse, _to_int_price, fetch_og_image
+from .search import accumulate, _to_int_price, fetch_og_image
 
 MAX_CARS = 24
 
@@ -21,7 +21,9 @@ SCORE_SYSTEM = (
     "You are a used-car deal analyst. Given the buyer's brief (model, budget, "
     "min year, fuel) and ONE listing, judge whether it's a good buy — weigh "
     "price vs typical market value for that model/year/mileage, and fit to the "
-    'brief. Respond ONLY with JSON: {"deal": boolean, "score": integer 0-100, '
+    "brief. Be a critical, calibrated judge. Reserve 80-100 for genuinely strong "
+    "buys, 60-79 for decent, 40-59 for weak, below 40 for poor. Do not inflate "
+    'scores. Respond ONLY with JSON: {"deal": boolean, "score": integer 0-100, '
     '"verdict": short phrase (e.g. "Great value", "Fair", "Overpriced"), '
     '"reason": short string, "typical_price": integer estimate of typical '
     "market price}."
@@ -63,30 +65,36 @@ def _find_cars(query, location, country, max_price, min_year, fuel, currency,
     budget = f" under {currency}{max_price}" if max_price else ""
     year_clause = f" from {min_year} onward" if min_year else ""
     fuel_clause = f" ({fuel} only)" if fuel and fuel != "Any" else ""
-    primary = (
-        f"Search classified and dealer sites for CURRENT used-car listings of "
-        f"{query}{fuel_clause} for sale in {where}{budget}{year_clause}. "
-        "Return up to 12 listings as a JSON array. Each item: "
-        '{"title": string, "price": integer (number only), "year": integer, '
-        '"mileage": string (e.g. "45,000 km") or number, "fuel": string, '
-        '"transmission": string, "location": string, '
-        '"url": string (a direct link to the listing page), '
-        '"image": string (photo URL if available, else ""), '
-        '"source": string (site name)}. '
-        "Only real, working listing URLs from genuine car marketplaces. "
-        "Output ONLY the JSON array."
-    )
-    raw = _parse(providers.web_search(provider, model, key, primary))
-    if len(raw) < 5:
-        supplement = (
-            f"Find MORE used {query} listings for sale in {where}{budget}"
-            f"{year_clause}{fuel_clause}, from a VARIETY of car sites "
-            "(avoid duplicates). Return ONLY a JSON array of "
-            '{"title","price","year","mileage","fuel","transmission",'
-            '"location","url","image","source"}. Real listing URLs. '
-            "Never return an empty array."
+
+    def make_prompt(exclude):
+        prompt = (
+            f"Search classified and dealer sites for CURRENT used-car listings of "
+            f"{query}{fuel_clause} for sale in {where}{budget}{year_clause}. "
+            f"Prefer well-known, popular car marketplaces used in the {country} region. "
+            "Return up to 15 listings as a JSON array. Each item: "
+            '{"title": string, "price": integer (number only), "year": integer, '
+            '"mileage": string (e.g. "45,000 km") or number, "fuel": string, '
+            '"transmission": string, "location": string, '
+            '"url": string (a direct link to the listing page), '
+            '"image": string (photo URL if available, else ""), '
+            '"source": string (site name)}. '
+            "Only real, working listing URLs from genuine car marketplaces. "
+            "Output ONLY the JSON array."
         )
-        raw = raw + _parse(providers.web_search(provider, model, key, supplement))
+        if exclude:
+            prompt += (
+                " Do NOT repeat any of these already-listed results: "
+                + ", ".join(exclude) + ". Return only NEW ones."
+            )
+        return prompt
+
+    def key_of(d):
+        url = str(d.get("url", "")).strip()
+        title = str(d.get("title", "")).strip()
+        price = _to_int_price(d.get("price"))
+        return url or (title + str(price))
+
+    raw = accumulate(provider, model, key, make_prompt, key_of, target=25, max_rounds=4)
     return _to_cars(raw)
 
 
@@ -101,13 +109,14 @@ def _score_car(car, query, max_price, min_year, fuel, currency, threshold,
         }, ensure_ascii=False)
         data = providers.chat_json(provider, model, key, SCORE_SYSTEM, payload)
         score = int(data.get("score", 0))
+        deal = score >= threshold
         return {
             "car": {**car, "typical_price": _to_int_price(data.get("typical_price"))},
             "score": score,
-            "deal": bool(data.get("deal")) or score >= threshold,
+            "deal": deal,
             "verdict": str(data.get("verdict", "")),
             "reason": str(data.get("reason", "")),
-            "status": "deal" if (bool(data.get("deal")) or score >= threshold) else "ok",
+            "status": "deal" if deal else "ok",
         }
     except Exception as exc:  # heuristic fallback
         price, cap = car.get("price"), max_price

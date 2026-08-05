@@ -1,0 +1,106 @@
+{% extends "base.html.j2" %}
+{% set page_title = "Price Tracker" %}
+{% set icon = "trending-down" %}
+{% set brand_title = "Price Tracker" %}
+{% set tagline = "Find real offers, spot the genuine deals" %}
+{% set form_title = "What are you buying?" %}
+{% set platforms_icon = "store" %}
+{% set platforms_label = "Retailers" %}
+{% set stat_labels = ["Offers", "Deals", "Best price", "Retailers"] %}
+{% set positive_status = "deal" %}
+{% set positive_label = "Deals" %}
+{% set ncols = 8 %}
+
+{% block table_empty %}Name a product and run a search.{% endblock %}
+
+{% block form %}
+      <div>
+        <label class="lbl" for="country"><i data-lucide="globe" class="w-3.5 h-3.5"></i>Country</label>
+        <select id="country" class="inp">
+          <option data-cur="₹" value="India" selected>India</option>
+          <option data-cur="$" value="United States">United States</option>
+          <option data-cur="£" value="United Kingdom">United Kingdom</option>
+          <option data-cur="AED " value="United Arab Emirates">United Arab Emirates</option>
+          <option data-cur="C$" value="Canada">Canada</option>
+          <option data-cur="A$" value="Australia">Australia</option>
+          <option data-cur="S$" value="Singapore">Singapore</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="product"><i data-lucide="package-search" class="w-3.5 h-3.5"></i>Product</label>
+        <input id="product" class="inp" value="Sony WH-1000XM5 headphones" placeholder="e.g. iPhone 15 128GB" />
+      </div>
+      <div>
+        <label class="lbl" for="target_price"><i data-lucide="target" class="w-3.5 h-3.5"></i>Target price</label>
+        <div class="relative">
+          <span id="curPrefix" class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-zinc-500 pointer-events-none">₹</span>
+          <input id="target_price" type="number" class="inp pl-8" value="25000" />
+        </div>
+      </div>
+      <div>
+        <label class="lbl"><i data-lucide="tag" class="w-3.5 h-3.5"></i>Condition</label>
+        <div id="condition" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div>
+        <label class="lbl" for="threshold"><i data-lucide="percent" class="w-3.5 h-3.5"></i>Deal score ≥</label>
+        <input id="threshold" type="number" min="0" max="100" class="inp" value="60" />
+      </div>
+      <button id="go" type="submit" class="btnp"><i data-lucide="search" class="w-4 h-4"></i>Find deals</button>
+      <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">Searches retailers for live prices, then rates each offer against the typical market price — so you see genuine deals, not fake markdowns.</p>
+{% endblock %}
+
+{% block table_head %}
+              <th class="th w-14"></th>
+              <th class="th">Product</th>
+              <th class="th text-right cursor-pointer select-none" data-sort="price">Price <span class="ar text-indigo-500" data-for="price"></span></th>
+              <th class="th text-right">Typical</th>
+              <th class="th cursor-pointer select-none" data-sort="score">Deal <span class="ar text-indigo-500" data-for="score"></span></th>
+              <th class="th">Verdict</th>
+              <th class="th">Retailer</th>
+              <th class="th"></th>
+{% endblock %}
+
+{% block tool_config %}
+window.TOOL = {
+  endpoint: "/api/track",
+  event: "offer",
+  itemKey: "offer",
+  positiveStatus: "deal",
+  emptyMsg: "No offers found",
+  filename: "prices",
+  jsonMode: "spread",
+  chips: [{ el:"condition", options:["New","Used","Refurbished"], multi:false, selected:["New"] }],
+  params: () => ({
+    country: $("country").value, product: $("product").value, currency,
+    target_price: $("target_price").value, condition: chip("condition")[0]||"", threshold: $("threshold").value,
+  }),
+  columns: [
+    { cell:(o)=>tdThumb(o) },
+    { cell:(o)=>tdTitle(o, o.title||"Untitled", [o.condition,o.availability].filter(Boolean).join(" · ")) },
+    { cell:(o)=>`<td class="td text-right tabnum font-medium whitespace-nowrap">${money(o.price)}</td>` },
+    { cell:(o)=>`<td class="td text-right tabnum text-zinc-500 dark:text-zinc-400 whitespace-nowrap">${money(o.typical_price)}</td>` },
+    { cell:(o,r)=>tdScore(r) },
+    { cell:(o,r)=>tdBadge(r) },
+    { cell:(o)=>tdMuted(o.source) },
+    { cell:(o)=>tdLink(o,"Buy") },
+  ],
+  summary: [
+    { value:(rs)=>rs.length||"—" },
+    { value:(rs)=>rs.filter(r=>r.deal).length },
+    { value:(rs)=>{ const p=rs.map(r=>r.offer.price).filter(x=>typeof x==="number"); return p.length?money(Math.min(...p)):"—"; } },
+    { value:(rs)=>new Set(rs.map(r=>r.offer.source).filter(Boolean)).size||"—" },
+  ],
+  exportCols: [
+    { name:"title", get:r=>r.offer.title },
+    { name:"price", get:r=>r.offer.price },
+    { name:"typical_price", get:r=>r.offer.typical_price },
+    { name:"source", get:r=>r.offer.source },
+    { name:"condition", get:r=>r.offer.condition },
+    { name:"availability", get:r=>r.offer.availability },
+    { name:"deal_score", get:r=>r.score },
+    { name:"deal", get:r=>r.deal },
+    { name:"verdict", get:r=>r.verdict },
+    { name:"url", get:r=>r.offer.url },
+  ],
+};
+{% endblock %}

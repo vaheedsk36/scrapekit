@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterator
 
 from . import providers, settings
-from .search import _parse, _to_int_price, fetch_og_image
+from .search import accumulate, _to_int_price, fetch_og_image
 
 MAX_OFFERS = 24
 
@@ -20,6 +20,8 @@ SCORE_SYSTEM = (
     "You are a shopping deal analyst. Given a product, the shopper's target price, "
     "and ONE offer, judge whether it's a genuinely good deal — weigh the offer "
     "price against the typical market price, the condition, and availability. "
+    "Be a critical, calibrated judge. Reserve 80-100 for genuinely strong deals, "
+    "60-79 for decent, 40-59 for weak, below 40 for poor. Do not inflate scores. "
     'Respond ONLY with JSON: {"deal": boolean, "score": integer 0-100 (deal '
     'quality), "verdict": short phrase (e.g. "Great deal", "Fair price", '
     '"Overpriced"), "reason": short string, "typical_price": integer estimate of '
@@ -53,26 +55,33 @@ def _to_offers(raw: list) -> list[dict]:
 
 def _find_offers(product, country, target, currency, condition, provider, model, key):
     cond = f" ({condition})" if condition else ""
-    primary = (
-        f"Search shopping sites for CURRENT prices of: {product}{cond}, in {country}. "
-        f"The shopper's target price is about {currency}{target}. "
-        "Return up to 12 offers as a JSON array. Each item: "
-        '{"title": string, "price": integer (number only), "source": string '
-        '(retailer name), "url": string (a direct link to the product page), '
-        '"image": string (product image URL if available, else ""), '
-        '"condition": string (new/used/refurbished), '
-        '"availability": string (e.g. in stock)}. '
-        "Only real, working product URLs from genuine retailers. Output ONLY the JSON array."
-    )
-    raw = _parse(providers.web_search(provider, model, key, primary))
-    if len(raw) < 5:
-        supplement = (
-            f"Find MORE current offers for {product}{cond} in {country} around "
-            f"{currency}{target}, from a VARIETY of retailers (avoid duplicates). "
-            'Return ONLY a JSON array of {"title","price","source","url","image",'
-            '"condition","availability"}. Real retailer URLs. Never return an empty array.'
+
+    def make_prompt(exclude):
+        prompt = (
+            f"Search shopping sites for CURRENT prices of: {product}{cond}, in {country}. "
+            f"The shopper's target price is about {currency}{target}. "
+            f"Prefer well-known, popular retailers used in the {country} region. "
+            "Return up to 15 offers as a JSON array. Each item: "
+            '{"title": string, "price": integer (number only), "source": string '
+            '(retailer name), "url": string (a direct link to the product page), '
+            '"image": string (product image URL if available, else ""), '
+            '"condition": string (new/used/refurbished), '
+            '"availability": string (e.g. in stock)}. '
+            "Only real, working product URLs from genuine retailers. Output ONLY the JSON array."
         )
-        raw = raw + _parse(providers.web_search(provider, model, key, supplement))
+        if exclude:
+            prompt += (
+                " Do NOT repeat any of these already-listed results: "
+                + ", ".join(exclude) + ". Return only NEW ones."
+            )
+        return prompt
+
+    def key_of(d):
+        url = str(d.get("url", "")).strip()
+        title = str(d.get("title", "")).strip()
+        return url or (title + str(d.get("source", "")))
+
+    raw = accumulate(provider, model, key, make_prompt, key_of, target=25, max_rounds=4)
     return _to_offers(raw)
 
 
@@ -86,13 +95,14 @@ def _score_offer(offer, product, target, currency, threshold, provider, model, k
         }, ensure_ascii=False)
         data = providers.chat_json(provider, model, key, SCORE_SYSTEM, payload)
         score = int(data.get("score", 0))
+        deal = score >= threshold
         return {
             "offer": {**offer, "typical_price": _to_int_price(data.get("typical_price"))},
             "score": score,
-            "deal": bool(data.get("deal")) or score >= threshold,
+            "deal": deal,
             "verdict": str(data.get("verdict", "")),
             "reason": str(data.get("reason", "")),
-            "status": "deal" if (bool(data.get("deal")) or score >= threshold) else "ok",
+            "status": "deal" if deal else "ok",
         }
     except Exception as exc:  # heuristic fallback
         price, tgt = offer.get("price"), target

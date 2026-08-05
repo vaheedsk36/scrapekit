@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterator
 
 from . import providers, settings
-from .search import _parse, _to_int_price
+from .search import accumulate, _to_int_price
 
 MAX_ITEMS = 24
 
@@ -21,8 +21,10 @@ SCORE_SYSTEM = (
     "You are a grants and tenders analyst. Given a seeker's sector and keywords "
     "and ONE funding opportunity (grant or tender), judge how relevant and "
     "worth-pursuing it is. Weigh sector/keyword relevance, whether it's open, "
-    'and fit. Respond ONLY with JSON: {"match": boolean, "score": integer 0-100, '
-    '"verdict": short phrase (e.g. "Strong match", "Maybe", "Off-topic"), '
+    "and fit. Be a critical, calibrated judge. Reserve 80-100 for genuinely "
+    "strong matches, 60-79 for decent, 40-59 for weak, below 40 for poor. Do not "
+    'inflate scores. Respond ONLY with JSON: {"match": boolean, "score": integer '
+    '0-100, "verdict": short phrase (e.g. "Strong match", "Maybe", "Off-topic"), '
     '"reason": short string}.'
 )
 
@@ -64,32 +66,37 @@ def _find_opportunities(sector, otype, country, keywords, provider, model, key):
     else:
         what = "both grants (funding programmes) and government/public procurement tenders and RFPs"
 
-    primary = (
-        f"Search public funding portals for CURRENT open {what} in {country}, "
-        f"relevant to the sector: {sector}. "
-        + (f"Match these keywords: {kw}. " if kw else "")
-        + "Return up to 12 items as a JSON array. Each item: "
-        '{"title": string, "funder": string (funding agency / issuing body), '
-        '"amount": string (like "$50,000") or number, else "", '
-        '"deadline": string (date) or "", '
-        '"url": string (direct link to the opportunity/notice page), '
-        '"location": string, "type": string (grant/tender), '
-        '"description": string, '
-        '"source": string (portal name, e.g. Grants.gov, TED, SAM.gov)}. '
-        "Only real, working opportunity URLs from genuine funding portals. "
-        "Output ONLY the JSON array."
-    )
-    raw = _parse(providers.web_search(provider, model, key, primary))
-    if len(raw) < 5:
-        supplement = (
-            f"Find MORE current open {what} in {country} for the {sector} sector "
-            + (f"({kw}) " if kw else "")
-            + "from a VARIETY of funding portals (avoid duplicates). "
-            'Return ONLY a JSON array of {"title","funder","amount","deadline",'
-            '"url","location","type","description","source"}. '
-            "Real portal URLs. Never return an empty array."
+    def make_prompt(exclude):
+        prompt = (
+            f"Search public funding portals for CURRENT open {what} in {country}, "
+            f"relevant to the sector: {sector}. "
+            + (f"Match these keywords: {kw}. " if kw else "")
+            + f"Prefer well-known, popular funding portals used in the {country} region. "
+            + "Return up to 15 items as a JSON array. Each item: "
+            '{"title": string, "funder": string (funding agency / issuing body), '
+            '"amount": string (like "$50,000") or number, else "", '
+            '"deadline": string (date) or "", '
+            '"url": string (direct link to the opportunity/notice page), '
+            '"location": string, "type": string (grant/tender), '
+            '"description": string, '
+            '"source": string (portal name, e.g. Grants.gov, TED, SAM.gov)}. '
+            "Only real, working opportunity URLs from genuine funding portals. "
+            "Output ONLY the JSON array."
         )
-        raw = raw + _parse(providers.web_search(provider, model, key, supplement))
+        if exclude:
+            prompt += (
+                " Do NOT repeat any of these already-listed results: "
+                + ", ".join(exclude) + ". Return only NEW ones."
+            )
+        return prompt
+
+    def key_of(d):
+        url = str(d.get("url", "")).strip()
+        title = str(d.get("title", "")).strip()
+        funder = str(d.get("funder", "")).strip()
+        return url or (title + funder)
+
+    raw = accumulate(provider, model, key, make_prompt, key_of, target=25, max_rounds=4)
     return _to_opportunities(raw)
 
 
@@ -103,7 +110,7 @@ def _score_opportunity(opp, sector, otype, keywords, country, threshold, provide
         }, ensure_ascii=False)
         data = providers.chat_json(provider, model, key, SCORE_SYSTEM, payload)
         score = int(data.get("score", 0))
-        match = bool(data.get("match")) or score >= threshold
+        match = score >= threshold
         return {
             "grant": opp,
             "score": score,

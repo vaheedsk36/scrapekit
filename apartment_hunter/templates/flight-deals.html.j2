@@ -1,0 +1,116 @@
+{% extends "base.html.j2" %}
+{% set page_title = "Flight Deals" %}
+{% set icon = "plane" %}
+{% set brand_title = "Flight Deals" %}
+{% set tagline = "Find the good fares, not the average ones" %}
+{% set form_title = "Where to?" %}
+{% set platforms_icon = "globe" %}
+{% set platforms_label = "Sites" %}
+{% set stat_labels = ["Offers", "Deals", "Best price", "Sites"] %}
+{% set positive_status = "deal" %}
+{% set positive_label = "Deals" %}
+{% set ncols = 8 %}
+
+{% block table_empty %}Pick a route and run a search.{% endblock %}
+
+{% block form %}
+      <div>
+        <label class="lbl" for="country"><i data-lucide="globe" class="w-3.5 h-3.5"></i>Country</label>
+        <select id="country" class="inp">
+          <option data-cur="₹" value="India" selected>India</option>
+          <option data-cur="$" value="United States">United States</option>
+          <option data-cur="£" value="United Kingdom">United Kingdom</option>
+          <option data-cur="AED " value="United Arab Emirates">United Arab Emirates</option>
+          <option data-cur="C$" value="Canada">Canada</option>
+          <option data-cur="A$" value="Australia">Australia</option>
+          <option data-cur="S$" value="Singapore">Singapore</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="origin"><i data-lucide="plane-takeoff" class="w-3.5 h-3.5"></i>From</label>
+        <input id="origin" class="inp" value="Bangalore" placeholder="e.g. Bangalore or BLR" />
+      </div>
+      <div>
+        <label class="lbl" for="destination"><i data-lucide="plane-landing" class="w-3.5 h-3.5"></i>To</label>
+        <input id="destination" class="inp" value="Dubai" placeholder="e.g. Dubai or DXB" />
+      </div>
+      <div>
+        <label class="lbl" for="when"><i data-lucide="calendar" class="w-3.5 h-3.5"></i>When</label>
+        <input id="when" class="inp" value="March" placeholder="e.g. March or flexible" />
+      </div>
+      <div>
+        <label class="lbl"><i data-lucide="armchair" class="w-3.5 h-3.5"></i>Cabin</label>
+        <div id="cabin" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div>
+        <label class="lbl" for="threshold"><i data-lucide="percent" class="w-3.5 h-3.5"></i>Deal score ≥</label>
+        <input id="threshold" type="number" min="0" max="100" class="inp" value="60" />
+      </div>
+      <button id="go" type="submit" class="btnp"><i data-lucide="search" class="w-4 h-4"></i>Find deals</button>
+      <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">Searches travel sites for live fares, then rates each offer against typical prices for that route and season — so you see genuine deals, not average fares.</p>
+{% endblock %}
+
+{% block table_head %}
+              <th class="th w-14">#</th>
+              <th class="th">Route / Airline</th>
+              <th class="th text-right cursor-pointer select-none" data-sort="price">Price <span class="ar text-indigo-500" data-for="price"></span></th>
+              <th class="th text-right">Typical</th>
+              <th class="th cursor-pointer select-none" data-sort="score">Deal <span class="ar text-indigo-500" data-for="score"></span></th>
+              <th class="th">Verdict</th>
+              <th class="th">Site</th>
+              <th class="th"></th>
+{% endblock %}
+
+{% block tool_config %}
+window.TOOL = {
+  endpoint: "/api/flights",
+  event: "flight",
+  itemKey: "flight",
+  positiveStatus: "deal",
+  emptyMsg: "No offers found",
+  filename: "flights",
+  jsonMode: "spread",
+  chips: [{ el:"cabin", options:["Economy","Premium","Business"], multi:false, selected:["Economy"] }],
+  params: () => ({
+    country: $("country").value, origin: $("origin").value, destination: $("destination").value,
+    when: $("when").value, cabin: chip("cabin")[0]||"Economy", currency, threshold: $("threshold").value,
+  }),
+  columns: [
+    { cell:(o,r,i)=>`<td class="td tabnum text-zinc-400">${i+1}</td>` },
+    { cell:(o)=>{
+        const head = o.route||o.airline||"Flight";
+        const air = (o.route&&o.airline) ? `<span class="text-zinc-500 dark:text-zinc-400"> · ${esc(o.airline)}</span>` : "";
+        const stops = (o.stops===0||o.stops==="0") ? "non-stop" : ((o.stops||o.stops===0) ? o.stops : "");
+        const sub = [o.cabin, stops, o.duration, o.depart].filter(Boolean).join(" · ");
+        return `<td class="td max-w-[300px]">${titleLink(o,head)}${air}<span class="block text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">${esc(sub)}</span></td>`;
+      } },
+    { cell:(o)=>`<td class="td text-right tabnum font-medium whitespace-nowrap">${money(o.price)}</td>` },
+    { cell:(o)=>`<td class="td text-right tabnum text-zinc-500 dark:text-zinc-400 whitespace-nowrap">${money(o.typical_price)}</td>` },
+    { cell:(o,r)=>tdScore(r) },
+    { cell:(o,r)=>tdBadge(r) },
+    { cell:(o)=>tdMuted(o.source) },
+    { cell:(o)=>tdLink(o,"Book") },
+  ],
+  summary: [
+    { value:(rs)=>rs.length||"—" },
+    { value:(rs)=>rs.filter(r=>r.deal).length },
+    { value:(rs)=>{ const p=rs.map(r=>r.flight.price).filter(x=>typeof x==="number"); return p.length?money(Math.min(...p)):"—"; } },
+    { value:(rs)=>new Set(rs.map(r=>r.flight.source).filter(Boolean)).size||"—" },
+  ],
+  exportCols: [
+    { name:"route", get:r=>r.flight.route },
+    { name:"airline", get:r=>r.flight.airline },
+    { name:"price", get:r=>r.flight.price },
+    { name:"typical_price", get:r=>r.flight.typical_price },
+    { name:"cabin", get:r=>r.flight.cabin },
+    { name:"stops", get:r=>r.flight.stops },
+    { name:"duration", get:r=>r.flight.duration },
+    { name:"depart", get:r=>r.flight.depart },
+    { name:"deal_score", get:r=>r.score },
+    { name:"deal", get:r=>r.deal },
+    { name:"verdict", get:r=>r.verdict },
+    { name:"source", get:r=>r.flight.source },
+    { name:"url", get:r=>r.flight.url },
+  ],
+};
+{% endblock %}

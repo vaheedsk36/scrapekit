@@ -13,14 +13,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterator
 
 from . import providers, settings
-from .search import _parse, _to_int_price
+from .search import accumulate, _to_int_price
 
 MAX_OFFERS = 24
 
 SCORE_SYSTEM = (
     "You are an airfare deal analyst. Given a route, dates, cabin, and ONE flight "
     "offer, judge whether the price is a genuinely good deal vs typical fares for "
-    'that route/season. Respond ONLY with JSON: {"deal": boolean, "score": integer '
+    "that route/season. Be a critical, calibrated judge. Reserve 80-100 for "
+    "genuinely strong fares, 60-79 for decent, 40-59 for weak, below 40 for poor. "
+    'Do not inflate scores. Respond ONLY with JSON: {"deal": boolean, "score": integer '
     '0-100, "verdict": short phrase (e.g. "Great fare", "Average", "Overpriced"), '
     '"reason": short string, "typical_price": integer estimate of a normal fare}.'
 )
@@ -58,27 +60,34 @@ def _to_offers(raw: list) -> list[dict]:
 
 
 def _find_offers(country, origin, destination, when, cabin, currency, provider, model, key):
-    primary = (
-        f"Search travel and airline sites for CURRENT flight offers from {origin} to "
-        f"{destination} for {when}, in {cabin} cabin class, in the {country} market "
-        f"(prices in {currency}). "
-        "Return up to 12 offers as a JSON array. Each item: "
-        '{"airline": string, "route": string (e.g. "BLR → DXB"), "price": integer '
-        '(number only), "depart": string (date/time or day), "stops": integer or '
-        '"non-stop", "duration": string, "cabin": string, "url": string (a direct '
-        'booking or search URL), "source": string (site name)}. '
-        "Only real, working booking URLs from genuine travel sites. Output ONLY the JSON array."
-    )
-    raw = _parse(providers.web_search(provider, model, key, primary))
-    if len(raw) < 5:
-        supplement = (
-            f"Find MORE current flight offers from {origin} to {destination} for {when}, "
-            f"{cabin} cabin, in the {country} market (prices in {currency}), from a "
-            "VARIETY of airlines and booking sites (avoid duplicates). "
-            'Return ONLY a JSON array of {"airline","route","price","depart","stops",'
-            '"duration","cabin","url","source"}. Real booking URLs. Never return an empty array.'
+    def make_prompt(exclude):
+        prompt = (
+            f"Search travel and airline sites for CURRENT flight offers from {origin} to "
+            f"{destination} for {when}, in {cabin} cabin class, in the {country} market "
+            f"(prices in {currency}). "
+            f"Prefer well-known, popular airlines and booking sites used in the {country} region. "
+            "Return up to 15 offers as a JSON array. Each item: "
+            '{"airline": string, "route": string (e.g. "BLR → DXB"), "price": integer '
+            '(number only), "depart": string (date/time or day), "stops": integer or '
+            '"non-stop", "duration": string, "cabin": string, "url": string (a direct '
+            'booking or search URL), "source": string (site name)}. '
+            "Only real, working booking URLs from genuine travel sites. Output ONLY the JSON array."
         )
-        raw = raw + _parse(providers.web_search(provider, model, key, supplement))
+        if exclude:
+            prompt += (
+                " Do NOT repeat any of these already-listed results: "
+                + ", ".join(exclude) + ". Return only NEW ones."
+            )
+        return prompt
+
+    def key_of(d):
+        url = str(d.get("url", "")).strip()
+        airline = str(d.get("airline", "")).strip()
+        price = _to_int_price(d.get("price"))
+        depart = str(d.get("depart", "")).strip()
+        return url or (airline + str(price) + depart)
+
+    raw = accumulate(provider, model, key, make_prompt, key_of, target=25, max_rounds=4)
     return _to_offers(raw)
 
 
@@ -93,13 +102,14 @@ def _score_offer(offer, country, origin, destination, when, cabin, currency, thr
         }, ensure_ascii=False)
         data = providers.chat_json(provider, model, key, SCORE_SYSTEM, payload)
         score = int(data.get("score", 0))
+        deal = score >= threshold
         return {
             "flight": {**offer, "typical_price": _to_int_price(data.get("typical_price"))},
             "score": score,
-            "deal": bool(data.get("deal")) or score >= threshold,
+            "deal": deal,
             "verdict": str(data.get("verdict", "")),
             "reason": str(data.get("reason", "")),
-            "status": "deal" if (bool(data.get("deal")) or score >= threshold) else "ok",
+            "status": "deal" if deal else "ok",
         }
     except Exception as exc:  # heuristic fallback
         score = 50

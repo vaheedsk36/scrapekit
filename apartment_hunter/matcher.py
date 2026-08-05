@@ -15,8 +15,10 @@ SYSTEM_PROMPT = (
     "You are an apartment-hunting assistant. Given a renter's criteria and a "
     "single listing, judge how well the listing fits. Weigh budget, bedrooms, "
     "location, and desired features. Be strict about hard limits (budget, city) "
-    'and reward listed perks. Respond ONLY with JSON: '
-    '{"match": boolean, "score": integer 0-100, "reason": short string, '
+    "and reward listed perks. Be a critical, calibrated judge: reserve 80-100 for "
+    "genuinely strong fits, 60-79 for decent, 40-59 for weak, below 40 for poor. "
+    "Do not inflate scores. Respond ONLY with JSON: "
+    '{"score": integer 0-100, "reason": short string, '
     '"blurb": one-line human summary}.'
 )
 
@@ -107,9 +109,11 @@ def _llm_eval(listing: Listing, criteria: dict, currency: str,
         ensure_ascii=False,
     )
     data = providers.chat_json(provider, model, key, SYSTEM_PROMPT, payload)
+    score = int(data.get("score", 0))
+    threshold = criteria.get("match_threshold", 60)
     return MatchResult(
-        match=bool(data.get("match")),
-        score=int(data.get("score", 0)),
+        match=score >= threshold,
+        score=score,
         reason=str(data.get("reason", "")),
         blurb=str(data.get("blurb", "")),
     )

@@ -1,0 +1,115 @@
+{% extends "base.html.j2" %}
+{% set page_title = "Job Radar" %}
+{% set icon = "briefcase" %}
+{% set brand_title = "Job Radar" %}
+{% set tagline = "Find and rank openings that fit you" %}
+{% set form_title = "What are you looking for?" %}
+{% set platforms_icon = "building-2" %}
+{% set platforms_label = "Job boards" %}
+{% set stat_labels = ["Jobs", "Matches", "Remote", "Sources"] %}
+{% set positive_status = "match" %}
+{% set positive_label = "Matches" %}
+{% set ncols = 8 %}
+
+{% block table_empty %}Name a role and run a search.{% endblock %}
+
+{% block form %}
+      <div>
+        <label class="lbl" for="country"><i data-lucide="globe" class="w-3.5 h-3.5"></i>Country</label>
+        <select id="country" class="inp">
+          <option data-cur="₹" value="India" selected>India</option>
+          <option data-cur="$" value="United States">United States</option>
+          <option data-cur="£" value="United Kingdom">United Kingdom</option>
+          <option data-cur="AED " value="United Arab Emirates">United Arab Emirates</option>
+          <option data-cur="C$" value="Canada">Canada</option>
+          <option data-cur="A$" value="Australia">Australia</option>
+          <option data-cur="S$" value="Singapore">Singapore</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="location"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>Location</label>
+        <input id="location" class="inp" value="Bengaluru" placeholder="e.g. Bengaluru or Remote" />
+      </div>
+      <div>
+        <label class="lbl" for="role"><i data-lucide="briefcase" class="w-3.5 h-3.5"></i>Role</label>
+        <input id="role" class="inp" value="Senior Python Engineer" placeholder="e.g. Senior Python Engineer" />
+      </div>
+      <div>
+        <label class="lbl" for="keywords"><i data-lucide="code" class="w-3.5 h-3.5"></i>Skills</label>
+        <input id="keywords" class="inp" value="Python, FastAPI, AWS" placeholder="comma-separated, e.g. Python, AWS" />
+      </div>
+      <div>
+        <label class="lbl"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i>Seniority</label>
+        <div id="seniority" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div>
+        <label class="lbl"><i data-lucide="house" class="w-3.5 h-3.5"></i>Remote only</label>
+        <div id="remote" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div>
+        <label class="lbl" for="threshold"><i data-lucide="percent" class="w-3.5 h-3.5"></i>Fit score ≥</label>
+        <input id="threshold" type="number" min="0" max="100" class="inp" value="60" />
+      </div>
+      <button id="go" type="submit" class="btnp"><i data-lucide="search" class="w-4 h-4"></i>Find jobs</button>
+      <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">Searches job boards for live openings, then rates each one against your role, skills, seniority and location — so you see the ones that actually fit.</p>
+{% endblock %}
+
+{% block table_head %}
+              <th class="th w-14">#</th>
+              <th class="th">Role / Company</th>
+              <th class="th">Location</th>
+              <th class="th">Salary</th>
+              <th class="th cursor-pointer select-none" data-sort="score">Fit <span class="ar text-indigo-500" data-for="score"></span></th>
+              <th class="th">Status</th>
+              <th class="th">Source</th>
+              <th class="th"></th>
+{% endblock %}
+
+{% block tool_config %}
+window.TOOL = {
+  endpoint: "/api/jobs",
+  event: "job",
+  itemKey: "job",
+  positiveStatus: "match",
+  emptyMsg: "No openings found",
+  filename: "jobs",
+  jsonMode: "cols",
+  chips: [
+    { el:"seniority", options:["Junior","Mid","Senior","Lead"], multi:false, selected:["Senior"] },
+    { el:"remote", options:["Remote only"], multi:false, selected:[] },
+  ],
+  params: () => ({
+    country: $("country").value, location: $("location").value, role: $("role").value,
+    keywords: $("keywords").value, seniority: chip("seniority")[0]||"", currency,
+    remote: chip("remote")[0]?"true":"", threshold: $("threshold").value,
+  }),
+  columns: [
+    { cell:(o,r,i)=>`<td class="td text-zinc-400 tabnum">${i+1}</td>` },
+    { cell:(o)=>tdTitle(o, o.title||"Untitled", [o.company, o.remote?"Remote":"", o.posted].filter(Boolean).join(" · ")) },
+    { cell:(o)=>tdMuted(o.location) },
+    { cell:(o)=>`<td class="td tabnum whitespace-nowrap">${esc(o.salary||"—")}</td>` },
+    { cell:(o,r)=>tdScore(r) },
+    { cell:(o,r)=>tdBadge(r) },
+    { cell:(o)=>tdMuted(o.source) },
+    { cell:(o)=>tdLink(o,"Apply") },
+  ],
+  summary: [
+    { value:(rs)=>rs.length||"—" },
+    { value:(rs)=>rs.filter(r=>r.match).length },
+    { value:(rs)=>rs.filter(r=>r.job.remote).length },
+    { value:(rs)=>new Set(rs.map(r=>r.job.source).filter(Boolean)).size||"—" },
+  ],
+  exportCols: [
+    { name:"title", get:r=>r.job.title },
+    { name:"company", get:r=>r.job.company },
+    { name:"location", get:r=>r.job.location },
+    { name:"salary", get:r=>r.job.salary },
+    { name:"remote", get:r=>r.job.remote },
+    { name:"fit", get:r=>r.score },
+    { name:"match", get:r=>r.match },
+    { name:"verdict", get:r=>r.verdict },
+    { name:"source", get:r=>r.job.source },
+    { name:"url", get:r=>r.job.url },
+  ],
+};
+{% endblock %}

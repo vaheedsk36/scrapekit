@@ -1,0 +1,104 @@
+{% extends "base.html.j2" %}
+{% set page_title = "Grants & Tenders" %}
+{% set icon = "landmark" %}
+{% set brand_title = "Grants & Tenders" %}
+{% set tagline = "Public funding and tenders, filtered to your sector" %}
+{% set form_title = "What are you seeking?" %}
+{% set platforms_icon = "library" %}
+{% set platforms_label = "Sources" %}
+{% set stat_labels = ["Opportunities", "Matches", "Sources", "Grants"] %}
+{% set positive_status = "match" %}
+{% set positive_label = "Matches" %}
+{% set ncols = 8 %}
+
+{% block table_empty %}Name a sector and run a search.{% endblock %}
+
+{% block form %}
+      <div>
+        <label class="lbl" for="country"><i data-lucide="globe" class="w-3.5 h-3.5"></i>Country / Region</label>
+        <select id="country" class="inp">
+          <option data-cur="₹" value="India" selected>India</option>
+          <option data-cur="$" value="United States">United States</option>
+          <option data-cur="£" value="United Kingdom">United Kingdom</option>
+          <option data-cur="AED " value="United Arab Emirates">United Arab Emirates</option>
+          <option data-cur="C$" value="Canada">Canada</option>
+          <option data-cur="A$" value="Australia">Australia</option>
+          <option data-cur="S$" value="Singapore">Singapore</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="sector"><i data-lucide="briefcase" class="w-3.5 h-3.5"></i>Sector</label>
+        <input id="sector" class="inp" value="climate tech" placeholder="e.g. climate tech" />
+      </div>
+      <div>
+        <label class="lbl"><i data-lucide="layers" class="w-3.5 h-3.5"></i>Type</label>
+        <div id="type" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div>
+        <label class="lbl" for="keywords"><i data-lucide="tags" class="w-3.5 h-3.5"></i>Keywords</label>
+        <input id="keywords" class="inp" value="renewable energy, carbon" placeholder="comma-separated" />
+      </div>
+      <div>
+        <label class="lbl" for="threshold"><i data-lucide="percent" class="w-3.5 h-3.5"></i>Fit score ≥</label>
+        <input id="threshold" type="number" min="0" max="100" class="inp" value="60" />
+      </div>
+      <button id="go" type="submit" class="btnp"><i data-lucide="search" class="w-4 h-4"></i>Find funding</button>
+      <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">Searches public funding portals for open grants and tenders, then rates each opportunity for how well it fits your sector and keywords.</p>
+{% endblock %}
+
+{% block table_head %}
+              <th class="th w-10">#</th>
+              <th class="th">Opportunity / Funder</th>
+              <th class="th text-right">Amount</th>
+              <th class="th">Deadline</th>
+              <th class="th cursor-pointer select-none" data-sort="score">Fit <span class="ar text-indigo-500" data-for="score"></span></th>
+              <th class="th">Status</th>
+              <th class="th">Source</th>
+              <th class="th"></th>
+{% endblock %}
+
+{% block tool_config %}
+window.TOOL = {
+  endpoint: "/api/grants",
+  event: "grant",
+  itemKey: "grant",
+  positiveStatus: "match",
+  emptyMsg: "No opportunities found",
+  filename: "grants",
+  jsonMode: "cols",
+  chips: [{ el:"type", options:["Grants","Tenders","Both"], multi:false, selected:["Both"] }],
+  params: () => ({
+    country: $("country").value, sector: $("sector").value, type: (chip("type")[0]||"Both").toLowerCase(),
+    keywords: $("keywords").value, currency, threshold: $("threshold").value,
+  }),
+  columns: [
+    { cell:(o,r,i)=>`<td class="td text-zinc-400 tabnum">${i+1}</td>` },
+    { cell:(o)=>tdTitle(o, o.title||"Untitled", [o.funder,o.type,o.location].filter(Boolean).join(" · "), 320) },
+    { cell:(o)=>`<td class="td text-right tabnum font-medium whitespace-nowrap">${esc(amountText(o.amount))}</td>` },
+    { cell:(o)=>`<td class="td text-zinc-500 dark:text-zinc-400 whitespace-nowrap">${esc(o.deadline||"—")}</td>` },
+    { cell:(o,r)=>tdScore(r) },
+    { cell:(o,r)=>tdBadge(r) },
+    { cell:(o)=>tdMuted(o.source) },
+    { cell:(o)=>tdLink(o,"Open") },
+  ],
+  summary: [
+    { value:(rs)=>rs.length||"—" },
+    { value:(rs)=>rs.filter(r=>r.match).length },
+    { value:(rs)=>new Set(rs.map(r=>r.grant.source).filter(Boolean)).size||"—" },
+    { value:(rs)=>rs.filter(r=>String(r.grant.type||"").toLowerCase().includes("grant")).length },
+  ],
+  exportCols: [
+    { name:"title", get:r=>r.grant.title },
+    { name:"funder", get:r=>r.grant.funder },
+    { name:"amount", get:r=>r.grant.amount },
+    { name:"deadline", get:r=>r.grant.deadline },
+    { name:"type", get:r=>r.grant.type },
+    { name:"location", get:r=>r.grant.location },
+    { name:"fit", get:r=>r.score },
+    { name:"match", get:r=>r.match },
+    { name:"verdict", get:r=>r.verdict },
+    { name:"source", get:r=>r.grant.source },
+    { name:"url", get:r=>r.grant.url },
+  ],
+};
+{% endblock %}
