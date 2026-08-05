@@ -1,8 +1,10 @@
 # ScrapeKit
 
 A self-hosted, bring-your-own-key toolkit of small scraping utilities. The home
-page (`/`) is a hub of tools; the first live one is **Apartment Hunter**, with
-more (Price Tracker, Job Radar, Grants & Tenders) on the way.
+page (`/`) is a hub of tools. Two are live — **Apartment Hunter** and
+**Price Tracker** — with Job Radar and Grants & Tenders on the way. Both share
+the same engine: web-search for real results, score each with an LLM, stream the
+process live, and export.
 
 ## Apartment Hunter
 

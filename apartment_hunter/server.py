@@ -53,11 +53,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_file("home.html", "text/html; charset=utf-8")
         if parsed.path in ("/apartment-hunter", "/apartment-hunter.html"):
             return self._serve_file("apartment-hunter.html", "text/html; charset=utf-8")
+        if parsed.path in ("/price-tracker", "/price-tracker.html"):
+            return self._serve_file("price-tracker.html", "text/html; charset=utf-8")
         if parsed.path == "/api/settings":
             from . import settings
             return self._send_json(settings.public_status())
         if parsed.path == "/api/hunt":
             return self._hunt(parse_qs(parsed.query))
+        if parsed.path == "/api/track":
+            return self._track(parse_qs(parsed.query))
         self.send_error(404)
 
     def do_POST(self):
@@ -117,6 +121,47 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 emit("log", {"level": "error", "msg": f"Server error: {exc}"})
                 emit("done", {"processed": 0, "matched": 0, "sites": 0,
+                              "currency": params["currency"]})
+            except Exception:
+                pass
+
+    def _track(self, q: dict) -> None:
+        def one(key, default=None):
+            vals = q.get(key)
+            return vals[0] if vals else default
+
+        params = {
+            "country": one("country", ""),
+            "product": one("product", ""),
+            "condition": one("condition", ""),
+            "currency": one("currency", "$"),
+            "target_price": int(one("target_price") or 0) or None,
+            "threshold": int(one("threshold") or 60),
+        }
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+
+        cfg = load_config(os.environ.get("AH_CONFIG") or None)
+
+        def emit(event: str, data: dict) -> None:
+            chunk = f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+            self.wfile.write(chunk.encode("utf-8"))
+            self.wfile.flush()
+
+        from . import price_hunt
+        try:
+            for event, data in price_hunt.run_track(params, cfg):
+                emit(event, data)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        except Exception as exc:
+            try:
+                emit("log", {"level": "error", "msg": f"Server error: {exc}"})
+                emit("done", {"processed": 0, "deals": 0, "sources": 0,
                               "currency": params["currency"]})
             except Exception:
                 pass
