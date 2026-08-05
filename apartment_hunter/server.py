@@ -59,6 +59,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_file("job-radar.html", "text/html; charset=utf-8")
         if parsed.path in ("/grants", "/grants.html"):
             return self._serve_file("grants.html", "text/html; charset=utf-8")
+        if parsed.path in ("/flight-deals", "/flight-deals.html"):
+            return self._serve_file("flight-deals.html", "text/html; charset=utf-8")
+        if parsed.path in ("/car-finder", "/car-finder.html"):
+            return self._serve_file("car-finder.html", "text/html; charset=utf-8")
         if parsed.path == "/api/settings":
             from . import settings
             return self._send_json(settings.public_status())
@@ -70,6 +74,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._jobs(parse_qs(parsed.query))
         if parsed.path == "/api/grants":
             return self._grants(parse_qs(parsed.query))
+        if parsed.path == "/api/flights":
+            return self._flights(parse_qs(parsed.query))
+        if parsed.path == "/api/cars":
+            return self._cars(parse_qs(parsed.query))
         self.send_error(404)
 
     def do_POST(self):
@@ -232,6 +240,39 @@ class Handler(BaseHTTPRequestHandler):
         }
         from . import grants_hunt
         self._sse(grants_hunt.run_grants, params)
+
+    def _flights(self, q: dict) -> None:
+        def one(key, default=None):
+            vals = q.get(key)
+            return vals[0] if vals else default
+        params = {
+            "country": one("country", ""),
+            "origin": one("origin", ""),
+            "destination": one("destination", ""),
+            "when": one("when", ""),
+            "cabin": one("cabin", "Economy"),
+            "currency": one("currency", "$"),
+            "threshold": int(one("threshold") or 60),
+        }
+        from . import flight_hunt
+        self._sse(flight_hunt.run_flights, params)
+
+    def _cars(self, q: dict) -> None:
+        def one(key, default=None):
+            vals = q.get(key)
+            return vals[0] if vals else default
+        params = {
+            "country": one("country", ""),
+            "location": one("location", ""),
+            "query": one("query", ""),
+            "max_price": int(one("max_price") or 0) or None,
+            "min_year": int(one("min_year") or 0) or None,
+            "fuel": one("fuel", "Any"),
+            "currency": one("currency", "$"),
+            "threshold": int(one("threshold") or 60),
+        }
+        from . import car_hunt
+        self._sse(car_hunt.run_cars, params)
 
 
 def serve(port: int = 8000, config: "str | None" = None) -> None:
